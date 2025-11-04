@@ -1,0 +1,9 @@
+## Interface: 30300
+## Title: InstanceEarnings
+## Notes: Tracks instance earnings and shows history
+## Author: Domly
+## Version: 1.2
+## SavedVariablesPerCharacter: InstanceEarningsDB
+
+InstanceEarnings.lua
+InstanceEarnings_History.lua
