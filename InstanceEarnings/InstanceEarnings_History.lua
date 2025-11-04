@@ -1,5 +1,5 @@
 ------------------------------------------------------------
--- Instance Earnings - History UI (Stripped: no copy popup, no sound)
+-- Instance Earnings - History UI (Stripped: no copy popup, no sound) + L60 XP mute in report/detail
 ------------------------------------------------------------
 InstanceEarnings_History = InstanceEarnings_History or {}
 local M = InstanceEarnings_History
@@ -148,7 +148,6 @@ local dungeonHeader = CreateHeader(dungeonPane, {
     {text="",      w=30},
 })
 
-
 local dScroll = CreateFrame("ScrollFrame","IE_DungeonScroll",dungeonPane,"FauxScrollFrameTemplate")
 dScroll:SetPoint("TOPLEFT",0,-18)
 dScroll:SetPoint("BOTTOMRIGHT",-26,0)
@@ -161,11 +160,9 @@ for i=1,ROWS do
     r:SetPoint("TOPLEFT", 0, -18 - (i-1)*18)
     r:SetPoint("RIGHT", -26, 0)
 
-    -- keep widths consistent with the header above
     local widths = {200, 100, 100, 100, 30}  -- Name, Money, XP, When, [+]
-    r.cols = {}
 
-    -- Build column anchor frames at fixed positions
+    r.cols = {}
     local col = {}
     local x = 0
     for c = 1, 5 do
@@ -177,35 +174,30 @@ for i=1,ROWS do
         x = x + widths[c]
     end
 
-    -- Name (left aligned, small inset)
     local nameFS = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     nameFS:SetPoint("LEFT", col[1], "LEFT", 2, 0)
     nameFS:SetWidth(widths[1]-6)
     nameFS:SetJustifyH("LEFT")
     r.cols[1] = nameFS
 
-    -- Money (right aligned)
     local totalFS = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     totalFS:SetPoint("RIGHT", col[2], "RIGHT", 2, 0)
     totalFS:SetWidth(widths[2]-6)
     totalFS:SetJustifyH("LEFT")
     r.cols[2] = totalFS
 
-    -- XP (right aligned)
     local xpFS = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     xpFS:SetPoint("RIGHT", col[3], "RIGHT", 2, 0)
     xpFS:SetWidth(widths[3]-6)
     xpFS:SetJustifyH("LEFT")
     r.cols[3] = xpFS
 
-    -- When (right aligned so '+' sits after it cleanly)
     local whenFS = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     whenFS:SetPoint("RIGHT", col[4], "RIGHT", 2, 0)
     whenFS:SetWidth(widths[4]-4)
     whenFS:SetJustifyH("LEFT")
     r.cols[4] = whenFS
 
-    -- '+' button in its own tiny column
     local b = CreateFrame("Button", nil, r)
     b:SetSize(16, 16)
     b:SetPoint("LEFT", col[5], "LEFT", -4, 0)
@@ -213,7 +205,6 @@ for i=1,ROWS do
     b:SetText("|cffFFD200+|r")
     r.plus = b
 
-    -- row background
     local bg = r:CreateTexture(nil,"BACKGROUND")
     bg:SetAllPoints()
     bg:SetTexture("Interface\\Buttons\\WHITE8x8")
@@ -279,9 +270,6 @@ end
 ------------------------------------------------------------
 -- Detail Popup (final) + Cogwheel + Plain-text Report
 ------------------------------------------------------------
-InstanceEarnings_History = InstanceEarnings_History or {}
-local M = InstanceEarnings_History
-
 local detail = CreateFrame("Frame", "IE_DetailPopup", UIParent)
 tinsert(UISpecialFrames, "IE_DetailPopup")
 detail:SetSize(300, 160)
@@ -290,16 +278,13 @@ detail:Hide()
 SkinFrame(detail, 0.90)
 detail:SetFrameStrata("HIGH")
 
--- Close button
 local dClose = CreateFrame("Button", "IE_DetailClose", detail, "UIPanelCloseButton")
 dClose:SetPoint("TOPRIGHT", -2, -2)
 
--- Title
 local dTitle = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 dTitle:SetPoint("TOPLEFT", 12, -10)
 dTitle:SetText("|cff00ff88Details|r")
 
--- Static, non-interactive text
 local dText = detail:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 dText:SetPoint("TOPLEFT", 12, -34)
 dText:SetPoint("BOTTOMRIGHT", -12, 35)
@@ -308,17 +293,14 @@ dText:SetJustifyV("TOP")
 dText:SetSpacing(2)
 detail.text = dText
 
--- Soft background behind text
 local dBg = detail:CreateTexture(nil, "BACKGROUND")
 dBg:SetPoint("TOPLEFT", dText, -4, 4)
 dBg:SetPoint("BOTTOMRIGHT", dText, 4, -4)
 dBg:SetColorTexture(0,0,0,0.2)
 
--- Channel selection defaults (session)
 local announceChannel = "PARTY"
 local announceTarget  = nil
 
--- Cogwheel (channel selector)
 local cog = CreateFrame("Button", "IE_ReportCog", detail)
 cog:SetSize(18, 18)
 cog:SetPoint("BOTTOMLEFT", 10, 10)
@@ -373,7 +355,6 @@ cog:SetScript("OnClick", function(self)
     EasyMenu(menu, dropdown, self, 0, 0, "MENU", 2)
 end)
 
--- Report button (plain text)
 local reportBtn = CreateFrame("Button", "IE_ReportButton", detail, "UIPanelButtonTemplate")
 reportBtn:SetSize(70, 20)
 reportBtn:SetPoint("BOTTOMRIGHT", -10, 10)
@@ -389,22 +370,21 @@ local function FormatTimeHMS(seconds)
     else return string.format("%ds", s) end
 end
 
--- Public: show details for a run (no vendor/total)
+-- detail view builder (hides XP at level 60)
 local function ShowDetailRun(run)
     local xp   = run.xp or 0
     local dur  = run.elapsed and FormatTimeHMS(run.elapsed) or "?"
     local money= run.money or 0
     local xpMax= UnitXPMax("player") or 1
+    local lvl  = UnitLevel("player") or 1
+    local showXP = (lvl < 60)
+
     local pct  = math.floor((math.min(xp, xpMax) / xpMax) * 100 + 0.5)
     local xphr = (run.elapsed and run.elapsed > 0) and math.floor(xp * 3600 / run.elapsed) or 0
     local minsTo = (xphr > 0) and math.floor(((xpMax - UnitXP("player")) / xphr) * 60 + 0.5) or 0
 
-    -- color helper
     local function C(hex, s) return "|cff"..hex..s.."|r" end
-    local V   = "ffffff"   -- values (white)
-    local SEP = "00ff88"   -- separator teal
-
-    -- label palette
+    local V   = "ffffff"
     local L_DURATION = "66ccff"
     local L_GOLD     = "ffd700"
     local L_XP       = "ffff00"
@@ -414,18 +394,20 @@ local function ShowDetailRun(run)
     local lines = {
         C(L_DURATION,"Duration:").." "..C(V, dur),
         C(L_GOLD,"Gold earned:").." "..C(V, FormatGSC_Icons(money)),
-        C(L_XP,"XP:").." "..C(V, xp.." ("..pct.."%)"),
-        C(L_XPHR,"XP/hr:").." "..C(V, xphr),
     }
+    if showXP then
+        table.insert(lines, C(L_XP,"XP:").." "..C(V, xp.." ("..pct.."%)"))
+        table.insert(lines, C(L_XPHR,"XP/hr:").." "..C(V, xphr))
+        table.insert(lines, C(L_TIME,"Time until next level:").." "..C(V, minsTo.."m"))
+    end
 
     detail.text:SetText(table.concat(lines, "\n"))
     detail.runData = run
     detail:Show()
 end
+M.ShowDetailRun = ShowDetailRun
 
-M.ShowDetailRun = ShowDetailRun  -- expose for row '+' buttons
-
--- Report sender (plain text, no total line)
+-- Report sender (plain text), hides XP lines at level 60
 reportBtn:SetScript("OnClick", function()
     local run = detail.runData
     if not run then print("IE: No run data to report."); return end
@@ -433,8 +415,10 @@ reportBtn:SetScript("OnClick", function()
     local xp   = run.xp or 0
     local dur  = run.elapsed and FormatTimeHMS(run.elapsed) or "?"
     local money= run.money or 0
-    local kills= run.kills or 0
     local xpMax= UnitXPMax("player") or 1
+    local lvl  = UnitLevel("player") or 1
+    local showXP = (lvl < 60)
+
     local pct  = math.floor((math.min(xp, xpMax) / xpMax) * 100 + 0.5)
     local xphr = (run.elapsed and run.elapsed > 0) and math.floor(xp * 3600 / run.elapsed) or 0
     local minsTo= (xphr > 0) and math.floor(((xpMax - UnitXP("player")) / xphr) * 60 + 0.5) or 0
@@ -444,11 +428,13 @@ reportBtn:SetScript("OnClick", function()
         "IE: Dungeon Results — "..(run.name or "Unknown"),
         "Duration: "..dur,
         string.format("Gold Earned: %dg %ds %dc", math.floor(money/10000), math.floor(money/100)%100, money%100),
-        string.format("XP: %d (%d%%)", xp, pct),
-        string.format("XP/hr: %d", xphr),
-        string.format("Time until next level: %dm", minsTo),
-        "-------------------------------",
     }
+    if showXP then
+        table.insert(lines, string.format("XP: %d (%d%%)", xp, pct))
+        table.insert(lines, string.format("XP/hr: %d", xphr))
+        table.insert(lines, string.format("Time until next level: %dm", minsTo))
+    end
+    table.insert(lines, "-------------------------------")
 
     local channel = announceChannel or "PARTY"
     local target  = announceTarget
@@ -461,6 +447,7 @@ reportBtn:SetScript("OnClick", function()
     end
     print("IE: Report sent to "..channel..(target and (" ("..target..")") or "")..".")
 end)
+
 ------------------------------------------------------------
 -- Scroll Update (Newest first)
 ------------------------------------------------------------
@@ -472,12 +459,11 @@ local function DungeonScroll_Update()
     FauxScrollFrame_Update(dScroll, count, ROWS, 18)
 
     for i=1,ROWS do
-        local idx = count - (i + off) + 1 -- newest first
+        local idx = count - (i + off) + 1
         local row = dRows[i]
         if data[idx] then
             local r = data[idx]
             row.cols[1]:SetText("|cff00ffff"..(r.name or "").."|r")
-            -- show only net run money (no combined/vendor totals)
             row.cols[2]:SetText("|cffffd700"..FormatGSC_Icons((r.money or 0)).."|r")
             row.cols[3]:SetText("|cffffff00"..(r.xp or 0).."|r")
             row.cols[4]:SetText("|cffaaaaaa"..(Ago(r.ts)).."|r")
@@ -538,13 +524,18 @@ cfgTitle:SetText("|cff00ff88InstanceEarnings Settings|r")
 local function MakeCheckbox(parent,label,y,getter,setter,fb)
     local b=CreateFrame("CheckButton",nil,parent,"UICheckButtonTemplate")
     b:SetPoint("TOPLEFT",14,y)
-    local t=b:CreateFontString(nil,"OVERLAY","GameFontHighlight")
-    t:SetPoint("LEFT",b,"RIGHT",4,0); t:SetText(label)
+
+    -- Styled text (teal accent + white)
+    local t=b:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    t:SetPoint("LEFT",b,"RIGHT",6,0)
+    t:SetText("|cff00ff88"..label.."|r")
+    b.label = t
+
     b:SetScript("OnShow",function(self) self:SetChecked(getter()) end)
     b:SetScript("OnClick",function(self)
         local on=self:GetChecked() and true or false
         setter(on)
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff88IE:|r "..fb..": "..(on and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r"))
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff88IE:|r ".."|cffffffff"..fb.."|r"..": "..(on and "|cff00ff00Enabled|r" or "|cffff0000Disabled|r"))
     end)
     return b
 end
@@ -559,7 +550,18 @@ local cb2=MakeCheckbox(cfg,"Quiet Mode (hide notifications)",-72,
     function(v) EnsureDB(); InstanceEarningsDB.quietMode=v end,
     "Quiet mode")
 
--- Clear buttons
+-- XP Window toggle
+local cb3=MakeCheckbox(cfg,"Show XP Window",-102,
+    function() EnsureDB(); return InstanceEarningsDB.showXPWindow end,
+    function(v)
+        EnsureDB()
+        InstanceEarningsDB.showXPWindow = v
+        if IE_XPWindow_SetShown then
+            IE_XPWindow_SetShown(v)
+        end
+    end,
+    "XP Window display")
+
 StaticPopupDialogs["IE_CLEAR_DUNGEONS"]={
     text="Clear Dungeon History? This cannot be undone.",
     button1=YES, button2=CANCEL,
@@ -583,7 +585,6 @@ clrB:SetSize(140,20); clrB:SetPoint("BOTTOMRIGHT",-12,12)
 clrB:SetText("Clear PvP History")
 clrB:SetScript("OnClick",function() StaticPopup_Show("IE_CLEAR_BGS") end)
 
--- Open/close behavior
 gear:SetScript("OnClick", function()
     if cfg:IsShown() then cfg:Hide() else cfg:Show() end
 end)
@@ -606,7 +607,6 @@ function M.RefreshUI()
     PvPScroll_Update()
 end
 
--- Default show state
 tabDungeon:SetScript("OnClick", function()
     dungeonPane:Show(); pvpPane:Hide()
     tabDungeon:SetBackdropColor(0.18,0.18,0.18,1)
