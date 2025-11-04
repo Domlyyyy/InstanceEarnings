@@ -10,8 +10,8 @@ InstanceEarnings tracks your dungeon and PvP earnings — showing **Gold**, **XP
 
 ## 📸 Preview
 <img width="1008" height="452" alt="IE" src="https://github.com/user-attachments/assets/aa1788da-df4e-4bbb-9738-dcc0dc6ec654" />
-<img width="207" height="101" alt="IESummary" src="https://github.com/user-attachments/assets/d14c2edb-e866-4248-9092-bab56494bc8e" />
 <img width="357" height="324" alt="IEDetails" src="https://github.com/user-attachments/assets/d2cf8f1d-4db6-4402-be26-a01a35177d8e" />
+<img width="207" height="101" alt="IESummary" src="https://github.com/user-attachments/assets/d14c2edb-e866-4248-9092-bab56494bc8e" />
 <img width="353" height="142" alt="IEReportChat" src="https://github.com/user-attachments/assets/c596c1f7-71a2-46f4-8ec0-180cfbbc94fa" />
 
 
