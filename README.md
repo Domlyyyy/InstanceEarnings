@@ -1,0 +1,2 @@
+# InstanceEarnings
+Tracks dungeon earnings
