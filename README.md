@@ -9,10 +9,13 @@ InstanceEarnings tracks your dungeon and PvP earnings — showing **Gold**, **XP
 - 🧭 Minimap Button – Quick access to history & settings.
 
 ## 📸 Preview
-<img width="1008" height="452" alt="IE" src="https://github.com/user-attachments/assets/aa1788da-df4e-4bbb-9738-dcc0dc6ec654" />
-<img width="357" height="324" alt="IEDetails" src="https://github.com/user-attachments/assets/d2cf8f1d-4db6-4402-be26-a01a35177d8e" />
-<img width="207" height="101" alt="IESummary" src="https://github.com/user-attachments/assets/d14c2edb-e866-4248-9092-bab56494bc8e" />
-<img width="353" height="142" alt="IEReportChat" src="https://github.com/user-attachments/assets/c596c1f7-71a2-46f4-8ec0-180cfbbc94fa" />
+<img width="600" height="600" alt="IESummary" src="https://github.com/user-attachments/assets/160456df-a9d5-464a-85b6-010af5bc479e" />
+<img width="600" height="600" alt="IE" src="https://github.com/user-attachments/assets/bb6daaa2-a0cc-4cff-9568-efbde3871fb7" />
+<img width="600" height="600" alt="IEDetails" src="https://github.com/user-attachments/assets/aad4eefe-d814-4d05-835c-ae4b9515abd1" /> 
+<img width="600" height="600" alt="IEReportChat" src="https://github.com/user-attachments/assets/fd86fa83-8f0f-4148-8cd3-ba3ab951f0e2" />
+
+
+
 
 
 ## ⚙️ Installation
