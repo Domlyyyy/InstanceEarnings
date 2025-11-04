@@ -1,5 +1,4 @@
 # InstanceEarnings
-
 A lightweight Ascension (3.3.5) addon that automatically tracks your dungeon earnings — gold, XP, and loot value — and keeps a detailed history of every run.
 
 ##  Features
@@ -15,3 +14,13 @@ A lightweight Ascension (3.3.5) addon that automatically tracks your dungeon ear
 ## ⚙️ Installation
 1. Download the latest release
 2. Place the folder into: Interface/Addons
+
+## 🧠 Usage
+- The addon automatically tracks dungeon runs as you play.
+- Open the **InstanceEarnings** window from the minimap icon or slash command.
+- Review your run history and click **+** for details.
+- Use the **Report** button to share your results in chat.
+- Click the **cogwheel icon** to choose where reports are sent.
+
+## 💬 Commands
+Type `/ie` in chat to see all available commands and options.
