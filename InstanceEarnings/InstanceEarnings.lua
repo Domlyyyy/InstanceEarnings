@@ -1,5 +1,20 @@
+-- GLOBAL honor color function with faction colors
+function HonorColorText(amount)
+    local faction = UnitFactionGroup("player")
+
+    if faction == "Alliance" then
+        -- Alliance = blue
+        return "|cff4696ec" .. tostring(amount) .. "|r"
+    elseif faction == "Horde" then
+        -- Horde = red
+        return "|cffff5555" .. tostring(amount) .. "|r"
+    else
+        -- Neutral fallback = gold
+        return "|cffffff00" .. tostring(amount) .. "|r"
+    end
+end
 ------------------------------------------------------------
--- Instance Earnings (Ascension 3.3.5) - FINAL (Accurate Totals + L60 XP mute + XP window + last-run tooltip)
+-- Instance Earnings ...
 ------------------------------------------------------------
 local addonName = ...
 local f = CreateFrame("Frame")
@@ -8,17 +23,14 @@ local f = CreateFrame("Frame")
 local inInstance = false
 local startXP, startMoney, startLevel, startTime
 local currentInstanceName, lastMapID
-local rawGoldLooted = 0
-local mobsKilled = 0
+
 
 ------------------------------------------------------------
 -- SavedVariables
 ------------------------------------------------------------
 local function EnsureDB()
     if not InstanceEarningsDB then InstanceEarningsDB = {} end
-    if InstanceEarningsDB.showTotal == nil then InstanceEarningsDB.showTotal = false end
     if InstanceEarningsDB.autoChatSwitch == nil then InstanceEarningsDB.autoChatSwitch = false end
-    if InstanceEarningsDB.quietMode == nil then InstanceEarningsDB.quietMode = false end
     if InstanceEarningsDB.showXPWindow == nil then InstanceEarningsDB.showXPWindow = false end
     if not InstanceEarningsDB.xpWindowPos then InstanceEarningsDB.xpWindowPos = { point="TOPRIGHT", rel="UIParent", relPoint="TOPRIGHT", x=-10, y=-220 } end
 end
@@ -36,6 +48,7 @@ end
 ------------------------------------------------------------
 -- Utils
 ------------------------------------------------------------
+
 local function FormatGSC_Icons(copper)
     copper = copper or 0
     if copper < 0 then copper = 0 end
@@ -58,7 +71,6 @@ local function FormatTimeHMS(seconds)
 end
 
 local function IEPrint(msg)
-    if InstanceEarningsDB and InstanceEarningsDB.quietMode then return end
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ff88IE:|r "..msg)
 end
 
@@ -72,6 +84,22 @@ local function Ago(ts)
     local h = math.floor(m/60)
     if h < 24 then return h.."h ago" end
     return math.floor(h/24).."d ago"
+end
+
+-- GLOBAL honor color function with faction colors
+function HonorColorText(amount)
+    local faction = UnitFactionGroup("player")
+
+    if faction == "Alliance" then
+        -- Alliance = blue
+        return "|cff4696ec" .. tostring(amount) .. "|r"
+    elseif faction == "Horde" then
+        -- Horde = red
+        return "|cffff5555" .. tostring(amount) .. "|r"
+    else
+        -- Neutral fallback = gold
+        return "|cffffff00" .. tostring(amount) .. "|r"
+    end
 end
 
 ------------------------------------------------------------
@@ -190,13 +218,24 @@ local function PrintDungeonSummary(name, moneyDiff, xpGained, elapsed)
 end
 
 ------------------------------------------------------------
--- Core Tracking
+-- Core Tracking + PvP (Battleground) Tracking
 ------------------------------------------------------------
-local function ResetRunState()
-    rawGoldLooted = 0
-    mobsKilled = 0
+-- Extra PvP state
+local pvpActive = false
+local pvpStartXP, pvpStartHonor, pvpStartTime
+local pvpName, pvpMapID
+
+local function GetCurrentHonor()
+    if GetHonorCurrency then
+        return GetHonorCurrency() or 0
+    end
+    return 0
 end
 
+
+------------------------------------------------------------
+-- Dungeon / Raid Tracking (unchanged behavior)
+------------------------------------------------------------
 local function StartTracking()
     EnsureDB()
     inInstance = true
@@ -205,11 +244,10 @@ local function StartTracking()
     startXP = UnitXP("player")
     startTime = GetTime()
     SaveSession()
-    ResetRunState()
     local name, _, _, _, _, _, _, mapID = GetInstanceInfo()
     currentInstanceName = name or "Unknown"
     lastMapID = mapID
-    if not InstanceEarningsDB.quietMode then IEPrint("|cffffff00Tracking started|r") end
+    IEPrint("|cffffff00Tracking started|r")
     IE_XPWindow_Update(true) -- start ticking if window is enabled
 end
 
@@ -222,7 +260,7 @@ local function ComputeRunNumbers()
         if currentLevel == (startLevel or currentLevel) then
             xpGained = UnitXP("player") - (startXP or 0)
         else
-            -- Level ups within run (rare on Ascension 60 cap context, but keep logic)
+            -- Level ups within run
             xpGained = (currentLevel - (startLevel or currentLevel)) * UnitXPMax("player")
                         + UnitXP("player") - (startXP or 0)
         end
@@ -249,10 +287,8 @@ local function StopTracking()
             money   = moneyDiff,
             xp      = xpGained,                 -- will be 0 at level 60
             elapsed = elapsed,
-            kills   = mobsKilled,
             when    = date("%Y-%m-%d %H:%M"),
             ts      = time(),
-            rawGoldOnly = rawGoldLooted,
             level   = UnitLevel("player") or 1, -- store for future logic if needed
         })
     end
@@ -260,24 +296,161 @@ local function StopTracking()
     IE_XPWindow_Update(false) -- stop ticking
 end
 
+------------------------------------------------------------
+-- PvP (Battleground) Tracking
+------------------------------------------------------------
+
+-- Correct Ascension honor getter
+local function GetCurrentHonor()
+    if GetHonorCurrency then
+        return GetHonorCurrency() or 0
+    end
+    return 0
+end
+
+-- Chat summary after BG ends (with icon)
+local function PrintPvPSummary(name, honorGained, xpGained, elapsed)
+    EnsureDB()
+
+    local lvl = UnitLevel("player") or 1
+    local showXP = (lvl < 60)
+
+    local honorIconInline = "|TInterface\\PVPRankBadges\\PVPRank12:14:14:0:0|t"
+
+    local function C(hex, s) return "|cff"..hex..s.."|r" end
+    local V   = "ffffff"
+    local SEP = "00ff88"
+
+    DEFAULT_CHAT_FRAME:AddMessage(C(SEP,"-----------------------------"))
+    DEFAULT_CHAT_FRAME:AddMessage(
+        C("66ccff","BG Duration:").." "..C(V, FormatTimeHMS(elapsed or 0))
+    )
+
+    -- Honor (with faction color + icon)
+    DEFAULT_CHAT_FRAME:AddMessage(
+        "|cffccccccHonor:|r "..HonorColorText(honorGained or 0).." "..honorIconInline
+    )
+
+    if showXP then
+        DEFAULT_CHAT_FRAME:AddMessage(
+            "|cffffff00XP gained:|r "..C(V, xpGained or 0)
+        )
+    end
+
+    DEFAULT_CHAT_FRAME:AddMessage(C(SEP,"-----------------------------"))
+end
+
+
+-- Internal PvP state
+local pvpActive = false
+local pvpStartXP, pvpStartHonor, pvpStartTime
+local pvpName, pvpMapID
+
+-- Called when entering PvP instance
+local function StartPvPTracking()
+    EnsureDB()
+
+    pvpActive     = true
+    pvpStartTime  = GetTime()
+    pvpStartXP    = UnitXP("player") or 0
+    pvpStartHonor = GetCurrentHonor()
+
+    local name, _, _, _, _, _, _, mapID = GetInstanceInfo()
+    pvpName  = name or "Battleground"
+    pvpMapID = mapID
+
+    IEPrint("|cffffff00PvP tracking started|r")
+end
+
+-- Called when leaving PvP instance
+local function StopPvPTracking()
+    if not pvpActive then return end
+    pvpActive = false
+
+    local honorNow   = GetCurrentHonor()
+    local honorGained= (honorNow or 0) - (pvpStartHonor or 0)
+
+    local lvl    = UnitLevel("player") or 1
+    local xpNow  = UnitXP("player") or 0
+    local xpGained = 0
+
+    if lvl < 60 then
+        xpGained = xpNow - (pvpStartXP or xpNow)
+    end
+
+    local elapsed = GetTime() - (pvpStartTime or GetTime())
+
+    -- Print summary
+    PrintPvPSummary(pvpName or "Battleground", honorGained, xpGained, elapsed)
+
+    -- Store in history
+    if InstanceEarnings_History and InstanceEarnings_History.AddPvPRun then
+        InstanceEarnings_History.AddPvPRun({
+            name    = pvpName or "Battleground",
+            honor   = honorGained,
+            xp      = xpGained,
+            elapsed = elapsed,
+            when    = date("%Y-%m-%d %H:%M"),
+            ts      = time(),
+        })
+    end
+end
+
+------------------------------------------------------------
+-- Instance State Dispatcher (Dungeon vs PvP)
+------------------------------------------------------------
 local function UpdateInstanceState()
     EnsureDB()
     local inInst, instType = IsInInstance()
 
     if inInst then
         local name, _, _, _, _, _, _, mapID = GetInstanceInfo()
-        if inInstance then
-            if lastMapID and mapID and mapID ~= lastMapID then
+
+        if instType == "pvp" then
+            -- Leaving a dungeon and entering a BG
+            if inInstance then
                 StopTracking()
+                inInstance = false
+            end
+
+            -- (Re)start PvP tracking if map changed or not active
+            if not pvpActive or (pvpMapID and mapID and mapID ~= pvpMapID) then
+                if pvpActive then
+                    StopPvPTracking()
+                end
+                StartPvPTracking()
+            end
+
+        else
+            -- Non-PvP instance: party/raid/etc.
+            -- If we were in a BG, stop PvP tracking
+            if pvpActive then
+                StopPvPTracking()
+            end
+
+            if inInstance then
+                if lastMapID and mapID and mapID ~= lastMapID then
+                    -- Swapped instance
+                    StopTracking()
+                    StartTracking()
+                end
+            else
+                -- Fresh instance entry
                 StartTracking()
             end
-        else
-            StartTracking()
+            inInstance = true
         end
+
         lastMapID = mapID
         HandleTradeChannel(true)
     else
-        if inInstance then StopTracking() end
+        -- Left all instances
+        if inInstance then
+            StopTracking()
+        end
+        if pvpActive then
+            StopPvPTracking()
+        end
         HandleTradeChannel(false)
     end
 end
@@ -313,7 +486,6 @@ f:RegisterEvent("PLAYER_ENTERING_WORLD")
 f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 f:RegisterEvent("CHAT_MSG_LOOT")
 f:RegisterEvent("CHAT_MSG_MONEY")
-f:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
 f:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
@@ -323,16 +495,20 @@ f:SetScript("OnEvent", function(self, event, ...)
 
     elseif event == "CHAT_MSG_LOOT" and inInstance then
         -- (intentionally silent here; gold is parsed via MONEY)
+
     elseif event == "CHAT_MSG_MONEY" and inInstance then
         local msg = ...
         local copper = 0
+
         local g = msg:match("(%d+)%s?Gold")
         local s = msg:match("(%d+)%s?Silver")
         local c = msg:match("(%d+)%s?Copper")
+
         if g then copper = copper + (tonumber(g) or 0) * 10000 end
         if s then copper = copper + (tonumber(s) or 0) * 100 end
         if c then copper = copper + (tonumber(c) or 0) end
-        rawGoldLooted = rawGoldLooted + copper
+
+        -- if you don't actually use `copper` anywhere anymore, this is just parsed and discarded, which is fine
     end
 end)
 
@@ -385,14 +561,18 @@ end)
 ------------------------------------------------------------
 -- ElvUI-style XP Window (draggable, toggleable)
 ------------------------------------------------------------
+---------------------
+-- XP Window (lightweight, only runs when enabled)
+---------------------
 local xpWindow, xpText1, xpText2, xpText3, xpText4
 local accum = 0
 
 local function SkinSmallFrame(f)
     f:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 12, insets = { left=2, right=2, top=2, bottom=2 }
+        bgFile  = "Interface\\Buttons\\WHITE8x8",
+        edgeFile= "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize= 12,
+        insets  = { left=2, right=2, top=2, bottom=2 }
     })
     f:SetBackdropColor(0.06,0.06,0.06, 0.92)
     f:SetBackdropBorderColor(0.2,0.2,0.2,1)
@@ -412,7 +592,13 @@ local function IE_CreateXPWindow()
     xpWindow:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local point, rel, relPoint, x, y = self:GetPoint(1)
-        InstanceEarningsDB.xpWindowPos = { point=point, rel=rel and rel:GetName() or "UIParent", relPoint=relPoint, x=x, y=y }
+        InstanceEarningsDB.xpWindowPos = {
+            point    = point,
+            rel      = rel and rel:GetName() or "UIParent",
+            relPoint = relPoint,
+            x        = x,
+            y        = y,
+        }
     end)
 
     local pos = InstanceEarningsDB.xpWindowPos
@@ -429,70 +615,93 @@ local function IE_CreateXPWindow()
     xpText2:SetPoint("TOPLEFT", 8, -28)  -- XP
     xpText3:SetPoint("TOPLEFT", 8, -44)  -- To level
     xpText4:SetPoint("TOPLEFT", 8, -60)  -- Gold
+
     xpText1:SetJustifyH("LEFT")
     xpText2:SetJustifyH("LEFT")
     xpText3:SetJustifyH("LEFT")
     xpText4:SetJustifyH("LEFT")
 
-
     xpWindow:Hide()
 end
 
-function IE_XPWindow_SetShown(show)
-    IE_CreateXPWindow()
-    if show then
-        xpWindow:Show()
+-- Core update logic (no timers here, just pure math)
+local function IE_XPWindow_DoUpdate()
+    if not xpWindow or not xpWindow:IsShown() then return end
+
+    local lvl   = UnitLevel("player") or 1
+    local xpMax = UnitXPMax("player") or 1
+    local xpCur = UnitXP("player") or 0
+    local money = GetMoney() or 0
+
+    -- Auto-correct invalid or negative baseline
+    if not startXP or xpCur < startXP then
+        startXP = xpCur
+    end
+    if not startMoney or money < startMoney then
+        startMoney = money
+    end
+    if not startTime or startTime > GetTime() then
+        startTime = GetTime()
+    end
+
+    local elapsed = GetTime() - startTime
+    if elapsed < 1 then elapsed = 1 end
+
+    local xpGained = 0
+    if lvl < 60 then
+        xpGained = xpCur - startXP
+    end
+
+    local xphr   = (lvl < 60) and math.floor(xpGained * 3600 / elapsed) or 0
+    local pct    = (lvl < 60) and math.floor((xpCur / xpMax) * 100 + 0.5) or 0
+    local remain = (lvl < 60) and math.max(0, xpMax - xpCur) or 0
+    local minsTo = (lvl < 60 and xphr > 0) and math.floor((remain / xphr) * 60 + 0.5) or 0
+
+    if lvl < 60 then
+        xpText1:SetText(string.format("|cffffff00XP/hr:|r %d", xphr))
+        xpText2:SetText(string.format("|cff66ff66XP:|r %d%%", pct))
+        xpText3:SetText(string.format("|cffa0a0ffTo level:|r %dm", minsTo))
     else
+        xpText1:SetText("|cffffff00XP/hr:|r —")
+        xpText2:SetText("|cff66ff66XP:|r —")
+        xpText3:SetText("|cffa0a0ffTo level:|r —")
+    end
+
+    xpText4:SetText("|cffffd700Gold earned:|r "..FormatGSC_Icons(money - startMoney))
+end
+
+-- OnUpdate driver, only attached when window is enabled
+local function XPWindow_OnUpdate(self, elapsed)
+    accum = accum + elapsed
+    if accum < 0.5 then return end  -- update twice per second max
+    accum = 0
+    IE_XPWindow_DoUpdate()
+end
+
+-- Public show/hide used by config + slash + login
+function IE_XPWindow_SetShown(show)
+    EnsureDB()
+    IE_CreateXPWindow()
+
+    InstanceEarningsDB.showXPWindow = not not show
+
+    if InstanceEarningsDB.showXPWindow then
+        xpWindow:Show()
+        accum = 0
+        xpWindow:SetScript("OnUpdate", XPWindow_OnUpdate)
+        IE_XPWindow_DoUpdate()  -- immediate refresh
+    else
+        xpWindow:SetScript("OnUpdate", nil)
         xpWindow:Hide()
+
     end
 end
 
--- call with tick=true on StartTracking, false on StopTracking
+-- Kept for API compatibility (StartTracking/StopTracking/login call this)
+-- We ignore the tick flag now and just sync to the DB flag.
 function IE_XPWindow_Update(tick)
     EnsureDB()
-    IE_CreateXPWindow()
     IE_XPWindow_SetShown(InstanceEarningsDB.showXPWindow)
-
-    -- always tick if shown, even outside instances
-    if not xpWindow:IsShown() then return end
-
-    if not xpWindow.ticker then
-        xpWindow.ticker = xpWindow:CreateAnimationGroup()
-        local a = xpWindow.ticker:CreateAnimation("Animation")
-        a:SetDuration(0.5)
-        xpWindow.ticker:SetLooping("REPEAT")
-        xpWindow.ticker:SetScript("OnLoop", function()
-            local lvl = UnitLevel("player") or 1
-            local xpMax = UnitXPMax("player") or 1
-            local xpCur = UnitXP("player") or 0
-            local money = GetMoney() or 0
-
-            -- compute XP/hr using session time
-            accum = accum + 0.5
-            if not startTime then startTime = GetTime() end
-            local elapsed = GetTime() - startTime
-            local xpGained = xpCur - (startXP or xpCur)
-            if elapsed < 1 then elapsed = 1 end
-
-            local xphr = (lvl < 60) and math.floor(xpGained * 3600 / elapsed) or 0
-            local pct  = (lvl < 60) and math.floor((xpCur / xpMax) * 100 + 0.5) or 0
-            local remain = (lvl < 60) and math.max(0, xpMax - xpCur) or 0
-            local minsTo = (xphr > 0) and math.floor((remain / xphr) * 60 + 0.5) or 0
-
-            if lvl < 60 then
-            xpText1:SetText(string.format("|cffffff00XP/hr:|r %d", xphr))
-            xpText2:SetText(string.format("|cff66ff66XP:|r %d%%", pct))
-            xpText3:SetText(string.format("|cffa0a0ffTo level:|r %dm", minsTo))
-            else
-            xpText1:SetText("|cffffff00XP/hr:|r —")
-            xpText2:SetText("|cff66ff66XP:|r —")
-            xpText3:SetText("|cffa0a0ffTo level:|r —")
-	end
-            xpText4:SetText("|cffffd700Gold earned:|r "..FormatGSC_Icons(money - (startMoney or money)))
-
-        end)
-        xpWindow.ticker:Play()
-    end
 end
 
 -- initialize panel visibility on login/reload
@@ -500,9 +709,10 @@ C_Timer.After(1, function()
     EnsureDB()
 
     -- Restore last session if available
-    startXP = InstanceEarningsDB.sessionXP or UnitXP("player")
-    startMoney = InstanceEarningsDB.sessionMoney or GetMoney()
-    startTime = InstanceEarningsDB.sessionTime or GetTime()
+    startXP = UnitXP("player")
+    startMoney = GetMoney()
+    startTime = GetTime()
+
 
     IE_CreateXPWindow()
     IE_XPWindow_SetShown(InstanceEarningsDB.showXPWindow)
